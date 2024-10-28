@@ -1,0 +1,12 @@
+:root {
+  --button-font-size: 16px;
+  --button-padding-vertical: 12px;
+  --button-padding-horizontal: 24px;
+  --button-min-width: 120px;
+}
+
+.large-button {
+  font-size: var(--button-font-size);
+  padding: var(--button-padding-vertical) var(--button-padding-horizontal);
+  min-width: var(--button-min-width);
+}

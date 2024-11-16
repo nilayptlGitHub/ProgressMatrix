@@ -1,7 +1,7 @@
 import React from 'react'
 import AppNavbar from '../Navbar/navbar';
 import {Navigate, Route, Routes} from 'react-router-dom';
-import AdminDashboard from '../Admin/AdminDashboard';
+import AdminDashboard from '../Admin/Dashboard/AdminDashboard';
 import Staff from '../Admin/Staff';
 import PageNotFound from '../PageNotFound/pagenotfound';
 

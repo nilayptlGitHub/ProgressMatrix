@@ -16,7 +16,6 @@ const token = Cookies.get('auth_Token');
 // console.log("Token from app.js : ",token);
 
 
-
 const defaultHomePage = (role) => {
   switch (role) {
     case userRoles.TEACHER:

@@ -2,12 +2,14 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import Swal from 'sweetalert2';
 import Cookies from 'js-cookie';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
+  const [redirectToLogin, setRedirectToLogin] = useState(false);
   const token = Cookies.get('auth_Token');  
   const user = useSelector((state) => state.user);
   const location = useLocation();
+
 
 
   useEffect(() => {
@@ -21,10 +23,14 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
         icon: 'warning',
         confirmButtonText: 'OK'
       }).then(() => {
-        return <Navigate to="/auth/login" state={{ from: location }} replace />;
+        setRedirectToLogin(true);
       });
     }
     }, [token, location]);
+
+    if (redirectToLogin) {
+      return <Navigate to="/auth/login" state={{ from: location }} replace />;
+    }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     const requiredRole = allowedRoles[0].charAt(0).toUpperCase() + allowedRoles[0].slice(1);

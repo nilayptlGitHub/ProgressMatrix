@@ -1,120 +1,131 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
-import Cookies from 'js-cookie';
-import styled from 'styled-components';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchResultList } from '../../redux/resultSlice';
+import Swal from 'sweetalert2';
+import 'bootstrap/dist/css/bootstrap.min.css';
+import { TiWarning } from "react-icons/ti";
 
-const Table = styled.table`
-  width: 100%;
-  border-collapse: collapse;
-`;
-const Th = styled.th`
-  background-color: #f2f2f2;
-  padding: 12px;
-  text-align: left;
-`;
 
-const Td = styled.td`
-  padding: 12px;
-  border-bottom: 1px solid #ddd;
-`;
+const ResultList = () => {
 
-const Button = styled.button`
-  background-color: #4CAF50;
-  border: none;
-  color: white;
-  padding: 8px 16px;
-  text-align: center;
-  text-decoration: none;
-  display: inline-block;
-  font-size: 14px;
-  margin: 4px 2px;
-  cursor: pointer;
-`;
+  const dispatch = useDispatch();
+  const resultList = useSelector((state) => state.result?.resultList || []);
+  const resultStatus = useSelector((state) => state.result?.status || 'idle');
+  const error = useSelector((state) => state.result?.error);
 
-const TryData = () => {
-  const [students, setStudents] = useState([]);
-  const [error, setError] = useState(null);
-  const [subjectCodes, setSubjectCodes] = useState([]);
-  const token = Cookies.get('auth_Token');
+  const [loading, setLoading] = useState(true);
+
 
   useEffect(() => {
-    const fetchStudents = async () => {
-      try {
-        let config = {
-          method: 'get',
-          maxBodyLength: Infinity,
-          url: 'http://localhost:3000/api/teacher/allstudent',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          withCredentials: true
-        };
-        
-        const response = await axios.request(config);
-        const studentData = response.data;
-        console.log(studentData);
-        
+    if (resultStatus === 'idle') {
+      dispatch(fetchResultList());
+    }
+  }, [resultStatus, dispatch]);
 
-        // Extract all unique subject codes from the students' grades
-        const allSubjectCodes = new Set();
-        studentData.forEach(student => {
-          student.grades.forEach(grade => {
-            allSubjectCodes.add(grade.subjectId);
-          });
-        });
+  useEffect(() => {
+    if (resultStatus === 'loading') {
+      setLoading(true);
+    } else {
+      setLoading(false);
+    }
+  }, [resultStatus]);
 
-        setSubjectCodes(Array.from(allSubjectCodes));
-        setStudents(studentData);
-      } catch (error) {
-        console.log(error);
-        setError(error);
-      }
-    };
+  useEffect(() => {
+    if (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error,
+        confirmButtonColor: '#8400EB',
+      });
+    }
+  }, [error]);
 
-    fetchStudents();
-  }, [token]);
+  useEffect(() => {
+    // console.log(resultList.length, resultList);
 
-  if (error) {
-    return <div>Error: {error.message}</div>;
-  }
+
+    if (resultStatus === 'succeeded' && (resultList.length === 0 || resultList.every(student => !student.grades || student.grades.length === 0))) {
+      Swal.fire({
+        icon: 'info',
+        title: 'No Data Found',
+        text: 'No results found. Upload result first.',
+        confirmButtonColor: '#8400EB',
+      });
+    }
+  }, [resultStatus, resultList]);
 
   return (
     <div>
-      <Table>
-        <thead>
-          <tr>
-            <Th>Sr. No</Th>
-            <Th>Roll No</Th>
-            <Th>Name</Th>
-            {/* Render subject codes as headers */}
-            {subjectCodes.map((subjectCode, index) => (
-              <Th key={index}>{subjectCode}</Th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {students.map((student, index) => (
-            <tr key={student.rollno}>
-              <Td>{index + 1}</Td>
-              <Td>{student.rollno}</Td>
-              <Td>{`${student.firstName} ${student.lastName}`}</Td>
-              {subjectCodes.map((subjectCode) => {
-                const grade = student.grades.find(
-                  (grade) => grade.subjectId === subjectCode
-                );
-                return (
-                  <Td key={subjectCode}>
-                    {grade ? grade.marksObtained : '-'}
-                  </Td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </Table>
+      {loading ? (
+        <div className="text-center">
+          <div className="spinner-border" role="status">
+            <span className="sr-only">Loading...</span>
+          </div>
+        </div>
+      ) : resultList.length > 0 && resultList.some(student => student.grades && student.grades.length > 0) ? (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <div style={{ fontFamily: 'Nunito', padding: '20px', width: '70vw' }}>
+            <div style={{ backgroundColor: '#e2eafc', border: '3px double #03045e', padding: '20px', borderRadius: '5px', marginBottom: '20px', color: '#03045e' }}>
+            <h2 className='text-center fs-4 fw-bold mb-2'>Academic Result</h2>
+            <h2 className='text-center fs-4 fw-bold mb-2'>Annual Summer Exam: 2024</h2>
+              <p className='text-center'>Exam duration : 15th March 2024 - 25th March 2024</p>
+            </div>
+            <table className="table table-striped table-bordered" style={{ textAlign: 'center', border: '2px solid #adb5bd' }}>
+              <thead>
+                <tr className='align-middle'>
+                  <th style={{ width: '5%', color: '#e3f2fd', backgroundColor: '#0d47a1' }}>Sr. No</th>
+                  <th style={{ width: '7%', color: '#e3f2fd', backgroundColor: '#0d47a1' }}>Roll No</th>
+                  <th style={{ width: '13%', color: '#e3f2fd', backgroundColor: '#0d47a1' }}>Name</th>
+                  <th style={{ width: '15%', color: '#e3f2fd', backgroundColor: '#0d47a1' }}>Subject</th>
+                  <th style={{ width: '10%', color: '#e3f2fd', backgroundColor: '#0d47a1' }}>Marks Obtained</th>
+                  <th style={{ width: '10%', color: '#e3f2fd', backgroundColor: '#0d47a1' }}>Total Obtained Marks</th>
+                  <th style={{ width: '10%', color: '#e3f2fd', backgroundColor: '#0d47a1' }}>Percentage</th>
+                </tr>
+              </thead>
+              <tbody>
+                {resultList.map((student, index) => {
+                  const totalMarksObtained = student.grades.reduce((sum, grade) => sum + grade.marksObtained, 0);
+                  const totalMaxMarks = student.grades.reduce((sum, grade) => sum + grade.maxMarks, 0);
+                  const percentage = ((totalMarksObtained / totalMaxMarks) * 100).toFixed(2);
+
+                  return (
+                    <React.Fragment key={student.rollno}>
+                      {student.grades.map((grade, gradeIndex) => (
+                        <tr key={`${student.rollno}-grade-${grade.subject}`}>
+                          {gradeIndex === 0 && (
+                            <>
+                              <td rowSpan={student.grades.length}>{index + 1}</td>
+                              <td rowSpan={student.grades.length}>{student.rollno}</td>
+                              <td rowSpan={student.grades.length}>{`${student.firstName} ${student.lastName}`}</td>
+                            </>
+                          )}
+                          <td>{grade.subject}</td>
+                          <td style={{ color: grade.marksObtained < 33 ? 'red' : 'inherit' }} >{grade.marksObtained} / {grade.maxMarks}</td>
+                          {gradeIndex === 0 && (
+                            <>
+                              <td rowSpan={student.grades.length}>{totalMarksObtained} / {totalMaxMarks}</td>
+                              <td rowSpan={student.grades.length} style={{ fontSize: '18px', fontWeight: '600', color: percentage < 33 || student.grades.some(grade => grade.marksObtained < 33) ? 'red' : 'green' }}>
+                                {percentage}%
+                                {(percentage < 33 || student.grades.some(grade => grade.marksObtained < 33)) && (
+                                  <div style={{ color: 'red', fontSize: '18px', fontWeight: '600' }}>Failed</div>
+                                )}
+                              </td>
+                            </>
+                          )}
+                        </tr>
+                      ))}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <div style={{ color: 'red', fontSize: '1.3rem', display: 'flex', margin: '2rem' }}><TiWarning className='mt-1 me-2' size={23} />No Result data available. Please upload Result File First.</div>)}
     </div>
   );
 };
 
-export default TryData;
+export default ResultList;

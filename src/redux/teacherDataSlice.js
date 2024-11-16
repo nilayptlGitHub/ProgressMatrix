@@ -1,66 +1,72 @@
-import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import axios from "axios";
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import axios from 'axios';
+import Cookies from 'js-cookie';
 
-// Async thunk to fetch teachers
-export const fetchTeachers = createAsyncThunk("teacher/fetchTeachers", async (_, { rejectWithValue }) => {
+const token = Cookies.get('auth_Token');
+
+export const fetchAllTeachers = createAsyncThunk('teachers/fetchAll', async (_, { rejectWithValue }) => {
   try {
-    const response = await axios.get("http://localhost:3000/api/admin/allteacher",{
+    const response = await axios.get('http://localhost:3000/api/admin/allteacher', {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
       withCredentials: true,
     });
+    // console.log(response.data);
+    
     return response.data;
   } catch (error) {
-    return rejectWithValue(error.response ? error.response.data : error.message);
+    if (error.response || (error.response.status === 500)) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Session Expired',
+        text: 'Your session has expired. Please log in again.',
+        confirmButtonColor: '#007bff',
+      }).then(() => {
+        window.location.href = '/auth/login';
+      });
+    }
+    return rejectWithValue(error.response.data);
   }
 });
 
-// Async thunk to add a teacher
-export const addTeacher = createAsyncThunk("teacher/addTeacher", async (teacherData, { rejectWithValue }) => {
-  try {
-    const response = await axios.post("http://localhost:3000/api/admin/addteacher", teacherData,{
-      withCredentials:true
-    });
-    return response.data;
-  } catch (error) {
-    return rejectWithValue(error.response ? error.response.data : error.message);
-  }
+export const addTeacher = createAsyncThunk('teachers/add', async (teacherData) => {
+  const response = await axios.post('http://localhost:3000/api/admin/addteacher', teacherData, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    withCredentials: true,
+  });
+  return response.data;
 });
 
-// Teacher slice
-const teacherSlice = createSlice({
-  name: "teacher",
+const teacherDataSlice = createSlice({
+  name: 'teacherData',
   initialState: {
     teachers: [],
-    loading: false,
+    status: 'idle',
     error: null,
   },
   reducers: {},
   extraReducers: (builder) => {
     builder
-      .addCase(fetchTeachers.pending, (state) => {
-        state.loading = true;
-        state.error = null;
+      .addCase(fetchAllTeachers.pending, (state) => {
+        state.status = 'loading';
       })
-      .addCase(fetchTeachers.fulfilled, (state, action) => {
-        state.loading = false;
+      .addCase(fetchAllTeachers.fulfilled, (state, action) => {
+        state.status = 'succeeded';
         state.teachers = action.payload;
       })
-      .addCase(fetchTeachers.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-      })
-      .addCase(addTeacher.pending, (state) => {
-        state.loading = true;
-        state.error = null;
+      .addCase(fetchAllTeachers.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.error.message;
       })
       .addCase(addTeacher.fulfilled, (state, action) => {
-        state.loading = false;
         state.teachers.push(action.payload);
-      })
-      .addCase(addTeacher.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
       });
   },
 });
 
-export default teacherSlice.reducer;
+export default teacherDataSlice.reducer;

@@ -1,17 +1,121 @@
 import React, { useEffect, useState } from "react";
-import Cookies from 'js-cookie';
-import axios from 'axios';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { selectUserProfile } from '../redux/userSlice';
+import { fetchAllTeachers, addTeacher } from '../redux/teacherDataSlice';
+import { RiUserAddFill } from "react-icons/ri";
+import { Button, Modal } from 'react-bootstrap';
+import styled from 'styled-components';
+import Swal from "sweetalert2";
+import { GiTeacher } from "react-icons/gi";
+import { FcAbout } from "react-icons/fc";
+import { FaUser, FaEnvelope, FaUserTag, FaSchool, FaCalendarAlt, FaChalkboardTeacher } from "react-icons/fa";
 
 
+const StyledModalContent = styled.div`
+  background-color: white;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 600px;
+`;
+
+const StyledFormGroup = styled.div`
+  margin-bottom: 1rem;
+
+  label {
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    display: block;
+  }
+
+  input, select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+  }
+
+  input:focus, select:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+  }
+
+  .error {
+    color: red;
+    font-size: 0.875rem;
+  }
+`;
+
+const HeaderSection = styled.div`
+  color: #8400ED;
+  padding: 1rem;
+  padding-top: 2rem;
+  text-align: center;
+  border-radius: 8px;
+  font-size: 1.5rem;
+  font-weight: 700;
+`;
+
+const StyledTable = styled.table`
+  width: 95%;
+  margin: 0 auto;
+  border-collapse: collapse;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 12px; 
+  overflow: hidden; 
+`;
+
+const TeacherProfile = styled.div`
+  padding: 1rem;
+  line-height: 1.5;
+  background-color: #f9f9f9; /* Added background color */
+  border-radius: 8px; /* Added border-radius for curved borders */
+  max-width: 380px; /* Decreased width */
+  margin: 0 auto; /* Center the profile */
+
+  .profile-field {
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    font-family: 'Nunito', sans-serif;
+  }
+  
+  .profile-field div {
+    margin-top: 0.4rem;
+  }
+
+  .profile-field label {
+    font-weight: 700;
+    display: block;
+    margin-right: 0.5rem;
+    margin-top: 0.3rem;
+  }
+
+  .hr {
+    width: 80%;
+    border: 0.5px solid #adb5bd;
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .profile-icon {
+    margin-right: 0.7rem;
+    color: #007bff;
+  }
+`;
 
 const Staff = () => {
-  const token = Cookies.get('auth_Token');
+  const dispatch = useDispatch();
   const [showModal, setShowModal] = useState(false);
-  const [teachers, setTeachers] = useState([]);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [selectedTeacher, setSelectedTeacher] = useState(null);
   const profile = useSelector(selectUserProfile);
-  const schoolId = profile.schoolData.school_id;
+  const schoolId = profile.school.school_id;
+  const schoolName = profile?.school?.school_name || '';
+  const teachers = useSelector((state) => state.teacherData.teachers);
   const [formData, setFormData] = useState({
     teacher_fname: "",
     teacher_lname: "",
@@ -20,18 +124,27 @@ const Staff = () => {
     dob: "",
     school_id: schoolId,
   });
+  const [availableClasses, setAvailableClasses] = useState([]);
+  const [errors, setErrors] = useState({});
 
-  // Open Modal
-  const openModal = () => {
-    setShowModal(true);
-  };
+  const nameRegex = /^[a-zA-Z]+$/;
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-  // Close Modal
-  const closeModal = () => {
-    setShowModal(false);
-  };
+  useEffect(() => {
+    dispatch(fetchAllTeachers());
+  }, [dispatch]);
 
-  // Handle form input change
+  useEffect(() => {
+    const allocatedClasses = teachers.map(teacher => parseInt(teacher.allocated_standard, 10));
+    const allClasses = Array.from({ length: 10 }, (_, i) => i + 1);
+    const unallocatedClasses = allClasses.filter(cls => !allocatedClasses.includes(cls));
+    setAvailableClasses(unallocatedClasses);
+  }, [teachers]);
+
+  const openModal = () => { setShowModal(true); };
+
+  const closeModal = () => { setShowModal(false); };
+
   const handleInputChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -42,92 +155,122 @@ const Staff = () => {
     return `${day}/${month}/${year}`;
   };
 
-  useEffect(() => {
-  
-    let config = {
-      method: 'get',
-      maxBodyLength: Infinity,
-      url: 'http://localhost:3000/api/admin/allteacher',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      withCredentials: true
-    };
+  const validate = () => {
+    const newErrors = {};
 
-    axios.request(config)
-      .then((response) => {
-        setTeachers(response.data);
-        // console.log(response.data);
-        
-      })
-      .catch((error) => {
-        console.log(error);
-      });
+    if (!formData.teacher_fname || !nameRegex.test(formData.teacher_fname)) {
+      newErrors.teacher_fname = 'First name is required and should only contain letters.';
+    }
 
-  }, []);
+    if (!formData.teacher_lname || !nameRegex.test(formData.teacher_lname)) {
+      newErrors.teacher_lname = 'Last name is required and should only contain letters.';
+    }
+
+    if (!formData.teacher_email || !emailRegex.test(formData.teacher_email)) {
+      newErrors.teacher_email = 'Valid email is required.';
+    }
+
+    if (!formData.allocated_standard) {
+      newErrors.allocated_standard = 'Allocated standard is required.';
+    }
+
+    if (!formData.dob || new Date(formData.dob) >= new Date()) {
+      newErrors.dob = 'Date of Birth is required and must be in the past.';
+    }
+
+    return newErrors;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     const formattedData = {
       ...formData,
-      dob: formatDate(formData.dob), 
+      dob: formatDate(formData.dob),
     };
-    console.log(formattedData);
-    
 
     try {
-      const response = await fetch("http://localhost:3000/api/admin/addteacher", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: 'include',
-        body: JSON.stringify(formattedData)
+      await dispatch(addTeacher(formattedData)).unwrap();
+      setShowModal(false);
+      setFormData({
+        teacher_fname: "",
+        teacher_lname: "",
+        teacher_email: "",
+        allocated_standard: "",
+        dob: "",
+        school_id: schoolId,
       });
 
-      if (response.ok) {
-        const newTeacher = await response.json();
-        setTeachers([...teachers, newTeacher]);
-        setShowModal(false);
-        setFormData({
-          teacher_fname: "",
-          teacher_lname: "",
-          teacher_email: "",
-          allocated_standard: "",
-          dob: "",
-        });
-      } else {
-        alert("Failed to add teacher");
-      }
+      Swal.fire({
+        icon: 'success',
+        title: 'Success!',
+        text: 'Teacher added successfully!',
+      });
     } catch (error) {
-      alert(`Error: ${error.message}`);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error!',
+        text: `Error: ${error.message}`,
+      });
     }
   };
 
+  const handleSubmitWithValidation = (e) => {
+    e.preventDefault();
+    const validationErrors = validate();
+
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+    } else {
+      setErrors({});
+      handleSubmit(e);
+    }
+  };
+
+  const handleShowProfile = (teacher) => {
+    setSelectedTeacher(teacher);
+    setShowProfileModal(true);
+  };
+
+  const handleCloseProfileModal = () => {
+    setShowProfileModal(false);
+    setSelectedTeacher(null);
+  };
+
+  const formatDOB = (date) => {
+    if (!date) return '';
+    const dateObj = new Date(date);
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0'); // Months are zero-based
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    return `${day}/${month}/${year}`;
+  };
 
 
   return (
     <>
-      <div className="container mx-auto mt-5">
-        {/* Flexbox container to align the button to the right */}
-        <div className="flex justify-end mb-4">
-          <button className="btn btn-primary" onClick={openModal}>
+      <div className="container bg-[#f4ecff]" style={{ fontFamily: "Nunito", height: 'calc(100vh - 70px)' ,width:"100vw" }}>
+        <HeaderSection>
+          <h1> Our Teaching Staff </h1>
+          <p style={{ color: 'black' }}>Our dedicated teachers who shape the future of our students.</p>
+        </HeaderSection>
+        <div className="flex justify-end mb-3">
+          <button className="d-flex btn btn-outline-dark bg-[#8400ED] text-white border-none me-5 mb-1"
+            onClick={openModal}
+            style={{ boxShadow: "0 6px 10px rgba(0, 0, 0, 0.4)" }}
+          >
+            <RiUserAddFill className="me-2" size={20} />
             Add Teacher
           </button>
         </div>
-        {/* Table for displaying teacher data */}
-        <table className="table-auto border-collapse border border-gray-300 w-full">
+        <StyledTable className="table table-striped table-bordered table-hover align-middle">
           <thead>
             <tr>
-              <th className="border border-gray-300 px-4 py-2">Sr. No.</th>
-              <th className="border border-gray-300 px-4 py-2">Teacher ID</th>
-              <th className="border border-gray-300 px-4 py-2">Teacher Name</th>
-              <th className="border border-gray-300 px-4 py-2">
-                Assigned Class
-              </th>
-              <th className="border border-gray-300 px-4 py-2">Actions</th>
+              <th style={{ width: '10%' , backgroundColor:'#1b263b' }} className="text-white border border-gray-300 px-4 py-2 ">Sr. No.</th>
+              <th style={{ width: '20%' , backgroundColor:'#1b263b'  }} className="text-white border border-gray-300 px-4 py-2">Teacher ID</th>
+              <th style={{ width: '30%' , backgroundColor:'#1b263b'  }} className="text-white border border-gray-300 px-4 py-2">Teacher Name</th>
+              <th style={{ width: '20%' , backgroundColor:'#1b263b'  }} className="text-white border border-gray-300 px-4 py-2">Assigned Class</th>
+              <th style={{ width: '20%' , backgroundColor:'#1b263b'  }} className="text-white border border-gray-300 px-4 py-2">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -144,92 +287,146 @@ const Staff = () => {
                   {teacher.allocated_standard}
                 </td>
                 <td className="border border-gray-300 px-4 py-2">
-                  <button className="btn btn-info">View More</button>
+                  <button className="d-flex btn btn-info border border-black" style={{backgroundColor:'#caf0f8'}} onClick={() => handleShowProfile(teacher)}>More details... <FcAbout className="mt-0 ms-2" size={25}/>
+                  </button>
                 </td>
               </tr>
             ))}
           </tbody>
-        </table>
+        </StyledTable>
 
         {/* Modal for adding teacher */}
         {showModal && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center">
-            <div className="bg-white p-5 rounded shadow-lg w-1/2">
-              <h2 className="text-xl mb-4">Add Teacher</h2>
-              <form onSubmit={handleSubmit}>
-                <div className="mb-3">
+          <div className="d-flex justify-content-center align-items-center position-fixed top-0 left-0 w-100 h-100 bg-dark bg-opacity-50">
+            <StyledModalContent >
+              <h2 className="d-flex mb-3 fs-4 text-[#8400ED]"><GiTeacher className="me-3" size={25} /> Register New Teacher</h2>
+              <h2 className="d-flex mb-4 fs-5 text-decoration-underline text-[#284b63]">New Teacher, New Job Role.</h2>
+              <form onSubmit={handleSubmitWithValidation}>
+                <StyledFormGroup>
                   <label>First Name</label>
                   <input
                     type="text"
                     name="teacher_fname"
                     value={formData.teacher_fname}
                     onChange={handleInputChange}
-                    className="form-control"
-                    required
                   />
-                </div>
-                <div className="mb-3">
+                  {errors.teacher_fname && <div className="error">{errors.teacher_fname}</div>}
+                </StyledFormGroup>
+
+                <StyledFormGroup>
                   <label>Last Name</label>
                   <input
                     type="text"
                     name="teacher_lname"
                     value={formData.teacher_lname}
                     onChange={handleInputChange}
-                    className="form-control"
-                    required
                   />
-                </div>
-                <div className="mb-3">
+                  {errors.teacher_lname && <div className="error">{errors.teacher_lname}</div>}
+                </StyledFormGroup>
+
+                <StyledFormGroup>
                   <label>Email</label>
                   <input
                     type="email"
                     name="teacher_email"
                     value={formData.teacher_email}
                     onChange={handleInputChange}
-                    className="form-control"
-                    required
                   />
-                </div>
-                <div className="mb-3">
-                  <label>Allocated Standard</label>
-                  <input
-                    type="number"
+                  {errors.teacher_email && <div className="error">{errors.teacher_email}</div>}
+                </StyledFormGroup>
+
+                <StyledFormGroup>
+                  <label>Allocate Standard</label>
+                  <select
                     name="allocated_standard"
                     value={formData.allocated_standard}
                     onChange={handleInputChange}
-                    className="form-control"
-                    required
-                    min="1"
-                    max="10"
-                    placeholder="Enter a number between 1 and 10"
-                  />
-                </div>
-                <div className="mb-3">
+                  >
+                    <option value="">Un-allocated standards</option>
+                    {availableClasses.map(cls => (
+                      <option key={cls} value={cls}>{cls}</option>
+                    ))}
+                  </select>
+                  {errors.allocated_standard && <div className="error">{errors.allocated_standard}</div>}
+                </StyledFormGroup>
+
+                <StyledFormGroup>
                   <label>Date of Birth</label>
                   <input
                     type="date"
                     name="dob"
                     value={formData.dob}
                     onChange={handleInputChange}
-                    className="form-control"
-                    required
                   />
-                </div>
-                <div className="flex justify-end">
-                  <button type="submit" className="btn btn-success mr-2">
+                  {errors.dob && <div className="error">{errors.dob}</div>}
+                </StyledFormGroup>
+
+                <div className="d-flex justify-content-end">
+                  <Button type="submit" variant="success" className="me-2">
                     Save
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={closeModal}
-                  >
+                  </Button>
+                  <Button variant="secondary" onClick={closeModal}>
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               </form>
-            </div>
+            </StyledModalContent>
           </div>
+        )}
+
+        {/* Modal for showing teacher profile */}
+        {showProfileModal && selectedTeacher && (
+        <Modal show={showProfileModal} onHide={handleCloseProfileModal}>
+          <Modal.Header closeButton className="bg-[#3a86ff]">
+            <Modal.Title className="d-flex text-[white] "><GiTeacher className="mx-3 mt-2"/>Teacher Profile</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <TeacherProfile className="hr">
+              <div className="d-flex profile-field">
+                <FaUser className="profile-icon me-2 mt-1" />
+                <label>First Name : </label>
+                <div className="ms-1">{selectedTeacher.teacher_fname}</div>
+              </div>
+                <hr className="hr"/>
+                <div className="d-flex profile-field">
+                <FaUser className="profile-icon me-2 mt-1" />
+                <label>Last Name : </label>
+                <div className="ms-1">{selectedTeacher.teacher_lname}</div>
+              </div>
+                <hr className="hr"/>
+                <div className="d-flex profile-field">
+                <FaEnvelope className="profile-icon me-2 mt-1" />
+                <label>Email : </label>
+                <div className="ms-1">{selectedTeacher.teacher_email}</div>
+              </div>
+                <hr className="hr"/>
+                <div className="d-flex profile-field">
+                <FaUserTag className="profile-icon me-2 mt-1" />
+                <label>Username : </label>
+                <div className="ms-1">{selectedTeacher.username}</div>
+              </div>
+                <hr className="hr"/>
+                <div className="d-flex profile-field">
+                <FaChalkboardTeacher className="profile-icon me-2 mt-1" />
+                <label>Allocated Standard : </label>
+                <div className="ms-1">{selectedTeacher.allocated_standard}</div>
+              </div>
+                <hr className="hr"/>
+                <div className="d-flex profile-field">
+                <FaCalendarAlt className="profile-icon me-2 mt-1" />
+                <label>Date of Birth : </label>
+                <div className="ms-1">{formatDOB(selectedTeacher.DOB)}</div>
+              </div>
+                <hr className="hr"/>
+                <div className="d-flex profile-field">
+                <FaSchool className="profile-icon me-2 mt-1" />
+                <label>School Name : </label>
+                <div className="ms-1">{schoolName}</div>
+              </div>
+                <hr className="hr"/>
+            </TeacherProfile>
+          </Modal.Body>
+        </Modal>
         )}
       </div>
     </>

@@ -59,7 +59,8 @@ const LoginPage = () => {
       .then((response) => {
         const responseMessage = response.data.message;
         const { token } = response.data;
-        // console.log(response.data.token);        
+        // console.log(responseMessage);
+        // console.log(response.data);        
         
         const role = jwtDecode(token).role;
         Cookies.set('auth_Token', token, { expires: 1,path: '/' });
@@ -68,9 +69,9 @@ const LoginPage = () => {
         if (role === 'teacher') {
           userData = response.data.user;
         } else if (role === 'admin') {
-          console.log(response.data);
+          // console.log(response.data);
           
-          userData = {admin : response.data.admin , schoolData : response.data.school};
+          userData = {admin : response.data.admin , school : response.data.school};
         }
 
         if (userData) {

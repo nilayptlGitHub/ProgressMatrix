@@ -2,54 +2,41 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 import Cookies from 'js-cookie';
 
-export const fetchAllStudents = createAsyncThunk(
-  'studentData/fetchAllStudents',
-  async (teacherId, { rejectWithValue }) => {
-    try {
-      const token = Cookies.get('auth_Token');
-      if (!token) {
-        throw new Error('No auth token found');
-      }
-      const response = await axios.get('http://localhost:3000/api/teacher/allstudent', {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        params: { teacherId },
-        withCredentials: true
-      });
-      console.log(response.data);
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching students:', error);
-      return rejectWithValue(error.response?.data || 'An error occurred');
-    }
-  }
-);
+const token = Cookies.get('auth_Token');
 
-const StudentDataSlice = createSlice({
+export const fetchStudents = createAsyncThunk('students/fetchStudents', async () => {
+  const response = await axios.get('http://localhost:3000/api/teacher/allstudent', {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    withCredentials: true,
+  });
+  return response.data;
+});
+
+const studentDataSlice = createSlice({
   name: 'studentData',
   initialState: {
     students: [],
-    loading: false,
+    status: 'idle',
     error: null,
   },
   reducers: {},
   extraReducers: (builder) => {
     builder
-      .addCase(fetchAllStudents.pending, (state) => {
-        state.loading = true;
+      .addCase(fetchStudents.pending, (state) => {
+        state.status = 'loading';
       })
-      .addCase(fetchAllStudents.fulfilled, (state, action) => {
-        state.loading = false;
+      .addCase(fetchStudents.fulfilled, (state, action) => {
+        state.status = 'succeeded';
         state.students = action.payload;
       })
-      .addCase(fetchAllStudents.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
+      .addCase(fetchStudents.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.error.message;
       });
   },
 });
 
-export const { actions } = StudentDataSlice;
-export default StudentDataSlice.reducer;
+export default studentDataSlice.reducer;
